@@ -56,7 +56,7 @@ BOOL __stdcall CEPlugin_InitializePlugin(PExportedFunctions ef, int pluginid) {
     MAINMENUPLUGIN_INIT init1;
     POINTERREASSIGNMENTPLUGIN_INIT init4;
     // 初始dump 文件夹地址
-    memTools.init(R"(test\)");
+    memTools.init("test\\");
 
     //open console
     AllocConsole();
