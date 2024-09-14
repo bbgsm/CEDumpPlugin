@@ -1,13 +1,11 @@
 // example-c.cpp : Defines the entry point for the DLL application.
 //
 
-//#define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
-// Windows Header Files:
+// #define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
+//  Windows Header Files:
 
 #include <cstdio>
-#include <ios>
-#include <sstream>
-#include <iostream>
+#include <filesystem>
 #include <fstream>
 #include "CheatEngine/cepluginsdk.h"
 
@@ -24,10 +22,7 @@ void __stdcall mainmenuplugin(void) {
     Exported.ShowMessage((char *)"Main menu plugin");
 }
 
-BOOL APIENTRY DllMain(HANDLE hModule,
-                      DWORD ul_reason_for_call,
-                      LPVOID lpReserved
-) {
+BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     switch (ul_reason_for_call) {
         case DLL_PROCESS_ATTACH: break;
         case DLL_THREAD_ATTACH:
@@ -55,10 +50,8 @@ void __stdcall PointersReassigned(int reserved) {
 BOOL __stdcall CEPlugin_InitializePlugin(PExportedFunctions ef, int pluginid) {
     MAINMENUPLUGIN_INIT init1;
     POINTERREASSIGNMENTPLUGIN_INIT init4;
-    // 初始dump 文件夹地址
-    memTools.init("test\\");
 
-    //open console
+    // open console
     AllocConsole();
     freopen("conin$", "r", stdin);
     freopen("conout$", "w", stdout);
@@ -66,6 +59,25 @@ BOOL __stdcall CEPlugin_InitializePlugin(PExportedFunctions ef, int pluginid) {
     freopen("conout$", "w+t", stdout);
     freopen("conin$", "r+t", stdin);
     printf("initializing\n");
+    char dllPath[MAX_PATH];
+    ::GetModuleFileName(GetModuleHandle("CEDumpPlugin.dll"), dllPath, MAX_PATH);
+    printf("dllPath: %s\n", dllPath);
+    std::filesystem::path path(dllPath);
+    std::string directoryPath = path.parent_path().string();
+    std::string configFile = directoryPath + "\\config.txt";
+    std::ifstream file(configFile);
+    std::string line;
+    // 获取dll路径下的config.txt作为初始化路径
+    if (std::getline(file, line)) {
+        // 初始dump 文件夹地址
+        if (memTools.init(line)) {
+            printf("init config success\n");
+        } else {
+            printf("failed to init config file\n");
+        }
+    } else {
+        printf("failed to load config file\n");
+    }
     auto open_process = ef->OpenProcess;
     auto read_process_memory = ef->ReadProcessMemory;
     auto write_process_memory = ef->WriteProcessMemory;
@@ -119,7 +131,7 @@ BOOL __stdcall CEPlugin_InitializePlugin(PExportedFunctions ef, int pluginid) {
     printf("Hooking Thread32Next 0x%p\n", thread_32_next);
     *(uintptr_t *)(thread_32_next) = (uintptr_t)&Hooks::hk_thread_32_next;
 
-    init1.name = (char *)"DMA Methicc CE Plugin";
+    init1.name = (char *)"Dump Methicc CE Plugin";
     init1.callbackroutine = mainmenuplugin;
     ef->RegisterFunction(pluginid, ptMainMenu, &init1);
     printf("Initialized Methicc's CE DMA plugin\n");
