@@ -129,10 +129,12 @@ BOOL __stdcall CEPlugin_InitializePlugin(PExportedFunctions ef, int pluginid) {
     printf("Hooking Thread32Next 0x%p\n", thread_32_next);
     *(uintptr_t *)(thread_32_next) = (uintptr_t)&Hooks::hk_thread_32_next;
 
-    init1.name = (char *)"Dump Methicc CE Plugin";
+    Hooks::detour_function(&IsWow64Process, Hooks::hk_IsWow64Process);
+
+    init1.name = (char *)"Dump CE Plugin";
     init1.callbackroutine = mainmenuplugin;
     ef->RegisterFunction(pluginid, ptMainMenu, &init1);
-    printf("Initialized Methicc's CE Dump plugin\n");
+    printf("Initialized CE Dump plugin\n");
     Exported = *ef;
     return TRUE;
 }
@@ -146,7 +148,9 @@ BOOL __stdcall CEPlugin_DisablePlugin(void) {
 
 
 int main() {
-    memTools.init("test\\apex3\\dict.txt");
+    Hooks::detour_function(&IsWow64Process, Hooks::hk_IsWow64Process);
+
+    memTools.init("C:\\Users\\27590\\Desktop\test\\apex3\\dict.txt");
     // memTools.setSearchAll();
     // int c = memTools.memorySearch("1679784192", MemoryToolsBase::MEM_DWORD);
     // memTools.printResult();

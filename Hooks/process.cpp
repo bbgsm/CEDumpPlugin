@@ -1,5 +1,5 @@
-#include <vector>
 #include <string>
+#include <vector>
 #include "hooks.h"
 
 
@@ -10,6 +10,10 @@ namespace Hooks {
 
     HANDLE hk_create_tool_help_32_snapshot(DWORD dwFlags, DWORD th32ProcessID) {
         return (HANDLE)0x66;
+    }
+
+    BOOL WINAPI hk_IsWow64Process(HANDLE hProcess, PBOOL Wow64Process) {
+        return true;
     }
 
     BOOL hk_process_32_first(HANDLE hSnapshot, LPPROCESSENTRY32 lppe) {
@@ -40,4 +44,4 @@ namespace Hooks {
         current_process++;
         return true;
     }
-}
+} // namespace Hooks
