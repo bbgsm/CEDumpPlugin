@@ -96,8 +96,6 @@ BOOL __stdcall CEPlugin_InitializePlugin(PExportedFunctions ef, int pluginid) {
     auto suspend_thread = ef->SuspendThread;
     auto resume_thread = ef->ResumeThread;*/
 
-    printf("Initialize DMA in advance (Required for Set Thread Context)\n");
-
     printf("Hooking Open Process 0x%p\n", open_process);
     *(uintptr_t *)(open_process) = (uintptr_t)&Hooks::hk_open_process;
 
@@ -134,7 +132,7 @@ BOOL __stdcall CEPlugin_InitializePlugin(PExportedFunctions ef, int pluginid) {
     init1.name = (char *)"Dump Methicc CE Plugin";
     init1.callbackroutine = mainmenuplugin;
     ef->RegisterFunction(pluginid, ptMainMenu, &init1);
-    printf("Initialized Methicc's CE DMA plugin\n");
+    printf("Initialized Methicc's CE Dump plugin\n");
     Exported = *ef;
     return TRUE;
 }
