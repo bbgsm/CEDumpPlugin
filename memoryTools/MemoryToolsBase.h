@@ -22,17 +22,19 @@
 #define logDebug
 #endif
 
+#define MAX_PATH 256
+
 // 模块
 struct MModule {
-    char moduleName[256] = {0};
+    char moduleName[MAX_PATH] = {0};
     Addr baseAddress = 0;
     Addr baseSize = 0;
 };
 
 // 进程
 struct PProcess {
-    char processName[256] = {0};
-    char processPath[256] = {0};
+    char processName[MAX_PATH] = {0};
+    char processPath[MAX_PATH] = {0};
     int processID = 0;
     int pProcessID = 0;
 };
@@ -51,16 +53,18 @@ public:
         MEM_STRING = 6   // string
     };
 
-    int ISize = sizeof(int);
-    int LSize = sizeof(mlong);
-    int FSize = sizeof(float);
-    int DSize = sizeof(double);
-    int BSize = sizeof(mbyte);
-    int CSize = sizeof(char);
-    int ULSize = sizeof(ulong);
-    int USSize = sizeof(ushort);
-    int I16LSize = sizeof(int16);
-    int ADDRSize = sizeof(Addr);
+    const int ISize = sizeof(int);
+    const int LSize = sizeof(mlong);
+    const int FSize = sizeof(float);
+    const int DSize = sizeof(double);
+    const int BSize = sizeof(mbyte);
+    const int CSize = sizeof(char);
+    const int ULSize = sizeof(ulong);
+    const int USSize = sizeof(ushort);
+    const int I16LSize = sizeof(int16);
+    const int ADDRSize = sizeof(Addr);
+
+    int memPageSize = 0x1000;    // 内存页大小
 
     int processID = -1;       // 进程pid
     std::string processName;  // 进程名
@@ -96,19 +100,20 @@ public:
     virtual ~MemoryToolsBase();
     /******** 子类必须实现的方法 *********/
 
+    void init();                             // 初始化(子类初始化时也调用一下它)
     void setPID(int pid);
 
     MModule getModule(std::string modName);  // 获取模块信息
     Addr getModuleAddr(std::string modName); // 获取模块地址
     ulong getModuleSize(std::string modName);// 获取模块大小
 
-    int readI(Addr addr, offset off = 0);     // 读取int
+    int readI(Addr addr, offset off = 0);     // 读取int(4位)
     int16 readI16(Addr addr, offset off = 0); // 读取int16
     bool readZ(Addr addr, offset off = 0);    // 读取bool
-    ulong readUL(Addr addr, offset off = 0);  // 读取ulong
-    Addr readA(Addr addr, offset off = 0);    // 读取ulong
+    ulong readUL(Addr addr, offset off = 0);  // 读取ulong(8位)
+    Addr readA(Addr addr, offset off = 0);    // 读取Addr(8位)
     Addr readP(Addr addr, offset off = 0);    // 读取指针
-    mlong readL(Addr addr, offset off = 0);   // 读取long
+    mlong readL(Addr addr, offset off = 0);   // 读取long(8位)
     float readF(Addr addr, offset off = 0);   // 读取float
     double readD(Addr addr, offset off = 0);  // 读取double
     mbyte readB(Addr addr, offset off = 0);   // 读取byte
@@ -130,7 +135,7 @@ public:
     static bool isAddrValid(Addr addr); // 判断内存地址是否有效
 
     /********** 搜索内存功能 ***************/
-    void addSearchModule(std::string modName);         // 设置搜索某个模块
+    void addSearchModule(std::string modName);         // 新增模块搜索范围
     void setSearchAll();                               // 设置搜索所有
     void addSearchRang(Addr startAddr, Addr endAddr);  // 手动添加搜索范围
 
@@ -143,7 +148,7 @@ public:
     int searchString(const std::string &values);
     int searchOffset(const mbyte *from_value, const mbyte *to_value, ulong offset, Type type, ulong len);
 
-    int memorySearch(std::string value, Type type); // 类型搜索,这里value需要传入一个地址
+    int memorySearch(std::string value, Type type); // 类型搜索
     int memoryOffset(std::string value, ulong offset, Type type); // 搜索偏移
     int rangeMemorySearch(std::string from_value, std::string to_value, Type type); // 范围搜索
     int rangeMemoryOffset(std::string from_value, std::string to_value, ulong offset, Type type); // 范围偏移
@@ -164,10 +169,9 @@ public:
     ulong dumpAllMem(const std::string &dirPath);                // 持久化内存结构以及数据
     /********** 持久化内存功能 ***************/
 
-    int getPid() const;        // 获取已设置的进程pid
     int getResCount() const;   // 获取搜索的数量
     int getProcessPid() const; // 获取已设置的进程pid
-    Addr getBaseAddr() const;  // 获取入库地址(基址)
+    Addr getBaseAddr() const;  // 获取入口地址(基址)
 
     std::vector<MModule> getModuleList() const; // 获取模块列表
 

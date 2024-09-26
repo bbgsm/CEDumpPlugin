@@ -4,8 +4,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
+// 此头文件不要删除
 #include <winsock2.h>
 #include <windows.h>
 
@@ -24,6 +26,11 @@ MemoryToolsBase::~MemoryToolsBase() {
 
 MemoryToolsBase::MemoryToolsBase() = default;
 
+void MemoryToolsBase::init() {
+    SYSTEM_INFO systemInfo;
+    GetSystemInfo(&systemInfo);
+    memPageSize = systemInfo.dwPageSize;
+}
 
 void MemoryToolsBase::addSearchModule(std::string modName) {
     Addr baseAddress = getModuleAddr(modName);
@@ -35,7 +42,7 @@ void MemoryToolsBase::setSearchAll() {
     for (const auto &module : moduleRegions) {
         addSearchRang(module.baseAddress, module.baseAddress + module.baseSize);
     }
-     for (const auto &memory : memoryRegions) {
+    for (const auto &memory : memoryRegions) {
         addSearchRang(memory.baseAddress, memory.baseAddress + memory.baseSize);
     }
 }
@@ -200,7 +207,7 @@ int MemoryToolsBase::searchFloat(float from_value, float to_value) {
     int cs = 0;
     RADDR pmap{0, 0};
     int c;
-    int buffSize = 0x1000 / FSize;
+    int buffSize = memPageSize / FSize;
     auto *buff = new float[buffSize]; // 缓冲区
     float len = 0;
     float max = searchRangeList->size();
@@ -210,16 +217,16 @@ int MemoryToolsBase::searchFloat(float from_value, float to_value) {
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
-        c = (int)(pmapsit->taddr - pmapsit->addr) / 0x1000;
+        c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
         printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
-            memRead(buff, 0x1000, pmapsit->addr, j * 0x1000);
+            memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i += 1) {
                 if (buff[i] >= from_value && buff[i] <= to_value) {
                     cs += 1;
-                    pmap.addr = pmapsit->addr + (j * 0x1000) + (i * FSize);
+                    pmap.addr = pmapsit->addr + (j * memPageSize) + (i * FSize);
                     resultList->push_back(pmap);
                 }
             }
@@ -236,26 +243,26 @@ int MemoryToolsBase::searchDword(int from_value, int to_value) {
     int cs = 0;
     RADDR pmap{0, 0};
     int c;
-    int buffSize = 0x1000 / ISize;
+    int buffSize = memPageSize / ISize;
     int *buff = new int[buffSize]; // 缓冲区
     float len = 0;
-    float max = searchRangeList->size();
+    auto max = static_cast<float>(searchRangeList->size());
     int position = 0;
     printf("searchRangeSize: %d\n", (int)searchRangeList->size());
     printf("\033[32;1m");
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
-        c = (int)(pmapsit->taddr - pmapsit->addr) / 0x1000;
+        c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
         printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
-            memRead(buff, 0x1000, pmapsit->addr, j * 0x1000);
+            memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i += 1) {
                 if (buff[i] >= from_value && buff[i] <= to_value) {
                     cs += 1;
-                    pmap.addr = pmapsit->addr + (j * 0x1000) + (i * ISize);
+                    pmap.addr = pmapsit->addr + (j * memPageSize) + (i * ISize);
                     resultList->push_back(pmap);
                 }
             }
@@ -271,7 +278,7 @@ int MemoryToolsBase::searchQword(mlong from_value, mlong to_value) {
     int cs = 0;
     RADDR pmap{0, 0};
     int c;
-    int buffSize = 0x1000 / LSize;
+    int buffSize = memPageSize / LSize;
     auto *buff = new mlong[buffSize]; // 缓冲区
     float len = 0;
     float max = searchRangeList->size();
@@ -281,16 +288,16 @@ int MemoryToolsBase::searchQword(mlong from_value, mlong to_value) {
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
-        c = (int)(pmapsit->taddr - pmapsit->addr) / 0x1000;
+        c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
         printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
-            memRead(buff, 0x1000, pmapsit->addr, j * 0x1000);
+            memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i += 1) {
                 if (buff[i] >= from_value && buff[i] <= to_value) {
                     cs += 1;
-                    pmap.addr = pmapsit->addr + (j * 0x1000) + (i * LSize);
+                    pmap.addr = pmapsit->addr + (j * memPageSize) + (i * LSize);
                     resultList->push_back(pmap);
                 }
             }
@@ -306,7 +313,7 @@ int MemoryToolsBase::searchDouble(double from_value, double to_value) {
     int cs = 0;
     RADDR pmap{0, 0};
     int c;
-    int buffSize = 0x1000 / DSize;
+    int buffSize = memPageSize / DSize;
     auto *buff = new double[buffSize]; // 缓冲区
     float len = 0;
     float max = searchRangeList->size();
@@ -316,16 +323,16 @@ int MemoryToolsBase::searchDouble(double from_value, double to_value) {
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
-        c = (int)(pmapsit->taddr - pmapsit->addr) / 0x1000;
+        c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
         printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
-            memRead(buff, 0x1000, pmapsit->addr, j * 0x1000);
+            memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i += 1) {
                 if (buff[i] >= from_value && buff[i] <= to_value) {
                     cs += 1;
-                    pmap.addr = pmapsit->addr + (j * 0x1000) + (i * DSize);
+                    pmap.addr = pmapsit->addr + (j * memPageSize) + (i * DSize);
                     resultList->push_back(pmap);
                 }
             }
@@ -341,7 +348,7 @@ int MemoryToolsBase::searchByte(mbyte from_value, mbyte to_value) {
     int cs = 0;
     RADDR pmap{0, 0};
     int c;
-    int buffSize = 0x1000 / BSize;
+    int buffSize = memPageSize / BSize;
     auto *buff = new mbyte[buffSize]; // 缓冲区
     float len = 0;
     float max = searchRangeList->size();
@@ -351,16 +358,16 @@ int MemoryToolsBase::searchByte(mbyte from_value, mbyte to_value) {
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
-        c = (int)(pmapsit->taddr - pmapsit->addr) / 0x1000;
+        c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
         printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
-            memRead(buff, 0x1000, pmapsit->addr, j * 0x1000);
+            memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i += 1) {
                 if (buff[i] >= from_value && buff[i] <= to_value) {
                     cs += 1;
-                    pmap.addr = pmapsit->addr + (j * 0x1000) + (i * BSize);
+                    pmap.addr = pmapsit->addr + (j * memPageSize) + (i * BSize);
                     resultList->push_back(pmap);
                 }
             }
@@ -396,7 +403,7 @@ int MemoryToolsBase::searchBytes(std::string values) {
     }
     int cs = 0;
     int c;
-    int buffSize = 0x1000;
+    int buffSize = memPageSize;
     auto *buff = new mbyte[buffSize]; // 缓冲区
     float len = 0;
     float max = searchRangeList->size();
@@ -408,29 +415,29 @@ int MemoryToolsBase::searchBytes(std::string values) {
     int k = 0;
     Addr beginAddr = 0;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
-        c = (int)(pmapsit->taddr - pmapsit->addr) / 0x1000;
+        c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
         printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
-            memRead(buff, 0x1000, pmapsit->addr, j * 0x1000);
+            memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i++) {
                 int number = numbers[k];
                 if (number == 0xFFFF) {
                     if (k >= numbers.size() - 1) {
                         /* 搜索完成 */
                         cs += 1;
-                        resultList->push_back({beginAddr, pmapsit->addr + (j * 0x1000) + i});
+                        resultList->push_back({beginAddr, pmapsit->addr + (j * memPageSize) + i});
                         k = 0;
                     }
                     k++;
                 } else if (buff[i] == (mbyte)number) {
                     if (k == 0) {
-                        beginAddr = pmapsit->addr + (j * 0x1000) + i;
+                        beginAddr = pmapsit->addr + (j * memPageSize) + i;
                     } else if (k >= numbers.size() - 1) {
                         /* 搜索完成 */
                         cs += 1;
-                        resultList->push_back({beginAddr, pmapsit->addr + (j * 0x1000) + i});
+                        resultList->push_back({beginAddr, pmapsit->addr + (j * memPageSize) + i});
                         k = 0;
                     }
                     k++;
@@ -456,7 +463,7 @@ int MemoryToolsBase::searchString(const std::string &values) {
     }
     int cs = 0;
     int c;
-    int buffSize = 0x1000;
+    int buffSize = memPageSize;
     auto *buff = new mbyte[buffSize]; // 缓冲区
     float len = 0;
     float max = searchRangeList->size();
@@ -468,20 +475,20 @@ int MemoryToolsBase::searchString(const std::string &values) {
     int k = 0;
     Addr beginAddr = 0;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
-        c = (int)(pmapsit->taddr - pmapsit->addr) / 0x1000;
+        c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
         printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
-            memRead(buff, 0x1000, pmapsit->addr, j * 0x1000);
+            memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i++) {
                 if (buff[i] == (mbyte)values[k]) {
                     if (k == 0) {
-                        beginAddr = pmapsit->addr + (j * 0x1000) + i;
+                        beginAddr = pmapsit->addr + (j * memPageSize) + i;
                     } else if (k >= strLength - 1) {
                         /* 搜索完成 */
                         cs += 1;
-                        resultList->push_back({beginAddr, pmapsit->addr + (j * 0x1000) + i});
+                        resultList->push_back({beginAddr, pmapsit->addr + (j * memPageSize) + i});
                         k = 0;
                     }
                     k++;
@@ -696,7 +703,7 @@ int MemoryToolsBase::rangeMemoryOffset(std::string from_value, std::string to_va
 
 
 void MemoryToolsBase::memoryWrite(std::string value, ulong offset, Type type) {
-    mbyte *buff;
+    mbyte *buff = nullptr;
     int len = 0;
     if (type == MEM_DWORD) {
         int val = atoi(value.c_str());
@@ -723,11 +730,16 @@ void MemoryToolsBase::memoryWrite(std::string value, ulong offset, Type type) {
         buff = new mbyte[BSize];
         memcpy(buff, &val, BSize);
         len = BSize;
+    } else {
+        printf("Not support type: %d\n", type);
+        return;
     }
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = resultList->begin(); pmapsit != resultList->end(); ++pmapsit) {
-        memWrite(&value, len, pmapsit->addr, offset);
+        if(memWrite(buff, len, pmapsit->addr, offset) != len){
+            printf("Write error, Addr: %llX\n", pmapsit->addr);
+        }
     }
 }
 
@@ -776,6 +788,11 @@ ulong MemoryToolsBase::dumpMem(std::string dumpModule, std::string filePath) {
 }
 
 ulong MemoryToolsBase::dumpAllMem(const std::string &dirPath) {
+    std::filesystem::path path(dirPath);
+    if (!exists(path)) {
+        printf("No such directory: %s\n", path.string().c_str());
+        return 0;
+    }
     ulong total = 0;
     std::string dictTxtPath = dirPath + "/dict.txt";
     FILE *dictTxt = fopen(dictTxtPath.c_str(), "wb");
@@ -804,8 +821,6 @@ ulong MemoryToolsBase::dumpAllMem(const std::string &dirPath) {
         total += size;
     }
     fclose(m);
-    SYSTEM_INFO systemInfo;
-    GetSystemInfo(&systemInfo);
     // 内存地址映射偏移
     std::string pteMemoryPath = dirPath + "/" + "pteMemory.bin";
     FILE *p = fopen(pteMemoryPath.c_str(), "wb");
@@ -870,10 +885,6 @@ std::list<RADDR> *MemoryToolsBase::getResults() {
 
 std::list<RADDR> *MemoryToolsBase::getSearchRange() const {
     return searchRangeList;
-}
-
-int MemoryToolsBase::getPid() const {
-    return processID;
 }
 
 int MemoryToolsBase::getResCount() const {

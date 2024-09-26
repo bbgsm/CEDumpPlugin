@@ -200,6 +200,7 @@ void DumpMemoryTools::initMemoryRegions() {
 }
 
 bool DumpMemoryTools::init(std::string bm) {
+    MemoryToolsBase::init();
     fs::path path = bm;
     if (exists(path)) {
         if (is_regular_file(path)) {
