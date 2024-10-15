@@ -1,16 +1,20 @@
 #include "MemoryToolsBase.h"
 #include <cmath>
-#include <fcntl.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <filesystem>
 #include <iostream>
 #include <sstream>
+
+#ifdef _WIN32
 // 此头文件不要删除
 #include <winsock2.h>
 #include <windows.h>
-
+#else // Linux
+#include <unistd.h>
+#endif
 const char *proText = "-/|\\";
 
 MemoryToolsBase::~MemoryToolsBase() {
@@ -27,12 +31,16 @@ MemoryToolsBase::~MemoryToolsBase() {
 MemoryToolsBase::MemoryToolsBase() = default;
 
 void MemoryToolsBase::init() {
+#ifdef _WIN32
     SYSTEM_INFO systemInfo;
     GetSystemInfo(&systemInfo);
-    memPageSize = systemInfo.dwPageSize;
+    memPageSize = static_cast<int>(systemInfo.dwPageSize);
+#else
+    memPageSize = sysconf(_SC_PAGESIZE);
+#endif
 }
 
-void MemoryToolsBase::addSearchModule(std::string modName) {
+void MemoryToolsBase::addSearchModule(const std::string &modName) {
     Addr baseAddress = getModuleAddr(modName);
     Addr baseSize = getModuleSize(modName);
     addSearchRang(baseAddress, baseAddress + baseSize);
@@ -60,7 +68,7 @@ Addr MemoryToolsBase::getPointers(Addr addr, int p_size, int *offsets) {
     return temp;
 }
 
-int MemoryToolsBase::getPointersValue(Addr addr, void *buff, ulong len, int p_size, ulong *offsets) {
+int MemoryToolsBase::getPointersValue(Addr addr, void *buff, mulong len, int p_size, mulong *offsets) {
     Addr temp = 0;
     readV(&temp, LSize, addr);
     for (int i = 0; i < p_size; i++) {
@@ -73,7 +81,7 @@ int MemoryToolsBase::getPointersValue(Addr addr, void *buff, ulong len, int p_si
     return 0;
 }
 
-MModule MemoryToolsBase::getModule(std::string modName) {
+MModule MemoryToolsBase::getModule(const std::string &modName) {
     for (const auto &module : moduleRegions) {
         if (modName == module.moduleName) {
             return module;
@@ -82,7 +90,7 @@ MModule MemoryToolsBase::getModule(std::string modName) {
     return {};
 }
 
-Addr MemoryToolsBase::getModuleAddr(std::string modName) {
+Addr MemoryToolsBase::getModuleAddr(const std::string &modName) {
     for (const auto &module : moduleRegions) {
         if (modName == module.moduleName) {
             return module.baseAddress;
@@ -91,7 +99,7 @@ Addr MemoryToolsBase::getModuleAddr(std::string modName) {
     return 0;
 }
 
-ulong MemoryToolsBase::getModuleSize(std::string modName) {
+mulong MemoryToolsBase::getModuleSize(const std::string &modName) {
     for (const auto &module : moduleRegions) {
         if (modName == module.moduleName) {
             return module.baseSize;
@@ -116,8 +124,8 @@ bool MemoryToolsBase::readZ(Addr addr, offset off) {
     return readI(addr, off) > 0;
 }
 
-ulong MemoryToolsBase::readUL(Addr addr, offset off) {
-    ulong temp = 0;
+mulong MemoryToolsBase::readUL(Addr addr, offset off) {
+    mulong temp = 0;
     memRead(&temp, ULSize, addr, off);
     return temp;
 }
@@ -168,31 +176,31 @@ ushort MemoryToolsBase::readUS(Addr addr, offset off) {
     return temp;
 }
 
-ulong MemoryToolsBase::readV(void *buff, ulong len, Addr addr, offset off) {
+mulong MemoryToolsBase::readV(void *buff, mulong len, Addr addr, offset off) {
     return memRead(buff, len, addr, off);
 }
 
-ulong MemoryToolsBase::writeI(int value, Addr addr, offset off) {
+mulong MemoryToolsBase::writeI(int value, Addr addr, offset off) {
     return memWrite(&value, ISize, addr, off);
 }
 
-ulong MemoryToolsBase::writeL(mlong value, Addr addr, offset off) {
+mulong MemoryToolsBase::writeL(mlong value, Addr addr, offset off) {
     return memWrite(&value, LSize, addr, off);
 }
 
-ulong MemoryToolsBase::writeF(float value, Addr addr, offset off) {
+mulong MemoryToolsBase::writeF(float value, Addr addr, offset off) {
     return memWrite(&value, FSize, addr, off);
 }
 
-ulong MemoryToolsBase::writeD(double value, Addr addr, offset off) {
+mulong MemoryToolsBase::writeD(double value, Addr addr, offset off) {
     return memWrite(&value, DSize, addr, off);
 }
 
-ulong MemoryToolsBase::writeB(mbyte value, Addr addr, offset off) {
+mulong MemoryToolsBase::writeB(mbyte value, Addr addr, offset off) {
     return memWrite(&value, BSize, addr, off);
 }
 
-ulong MemoryToolsBase::writeV(void *buff, ulong len, Addr addr, offset off) {
+mulong MemoryToolsBase::writeV(void *buff, mulong len, Addr addr, offset off) {
     return memWrite(buff, len, addr, off);
 }
 
@@ -203,7 +211,7 @@ bool MemoryToolsBase::isAddrValid(Addr addr) {
     return true;
 }
 
-int MemoryToolsBase::searchFloat(float from_value, float to_value) {
+int MemoryToolsBase::searchFloat(float fromValue, float toValue) {
     int cs = 0;
     RADDR pmap{0, 0};
     int c;
@@ -212,19 +220,19 @@ int MemoryToolsBase::searchFloat(float from_value, float to_value) {
     float len = 0;
     float max = searchRangeList->size();
     int position = 0;
-    printf("searchRangeSize: %d\n", (int)searchRangeList->size());
-    printf("\033[32;1m");
+    logInfo("searchRangeSize: %d\n", (int)searchRangeList->size());
+    logInfo("\033[32;1m");
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
         c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
-        printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
+        logInfo("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
             memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i += 1) {
-                if (buff[i] >= from_value && buff[i] <= to_value) {
+                if (buff[i] >= fromValue && buff[i] <= toValue) {
                     cs += 1;
                     pmap.addr = pmapsit->addr + (j * memPageSize) + (i * FSize);
                     resultList->push_back(pmap);
@@ -232,14 +240,13 @@ int MemoryToolsBase::searchFloat(float from_value, float to_value) {
             }
         }
     }
-    printf("\033[37;1m");
-    printf("\n");
+    logInfo("\033[37;1m");
+    logInfo("\n");
     delete[] buff;
     return cs;
 }
 
-
-int MemoryToolsBase::searchDword(int from_value, int to_value) {
+int MemoryToolsBase::searchDword(int fromValue, int toValue) {
     int cs = 0;
     RADDR pmap{0, 0};
     int c;
@@ -248,19 +255,19 @@ int MemoryToolsBase::searchDword(int from_value, int to_value) {
     float len = 0;
     auto max = static_cast<float>(searchRangeList->size());
     int position = 0;
-    printf("searchRangeSize: %d\n", (int)searchRangeList->size());
-    printf("\033[32;1m");
+    logInfo("searchRangeSize: %d\n", (int)searchRangeList->size());
+    logInfo("\033[32;1m");
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
         c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
-        printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
+        logInfo("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
-            memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
+            mulong u = memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i += 1) {
-                if (buff[i] >= from_value && buff[i] <= to_value) {
+                if (buff[i] >= fromValue && buff[i] <= toValue) {
                     cs += 1;
                     pmap.addr = pmapsit->addr + (j * memPageSize) + (i * ISize);
                     resultList->push_back(pmap);
@@ -268,13 +275,13 @@ int MemoryToolsBase::searchDword(int from_value, int to_value) {
             }
         }
     }
-    printf("\033[37;1m");
-    printf("\n");
+    logInfo("\033[37;1m");
+    logInfo("\n");
     delete[] buff;
     return cs;
 }
 
-int MemoryToolsBase::searchQword(mlong from_value, mlong to_value) {
+int MemoryToolsBase::searchQword(mlong fromValue, mlong toValue) {
     int cs = 0;
     RADDR pmap{0, 0};
     int c;
@@ -283,19 +290,19 @@ int MemoryToolsBase::searchQword(mlong from_value, mlong to_value) {
     float len = 0;
     float max = searchRangeList->size();
     int position = 0;
-    printf("searchRangeSize: %d\n", (int)searchRangeList->size());
-    printf("\033[32;1m");
+    logInfo("searchRangeSize: %d\n", (int)searchRangeList->size());
+    logInfo("\033[32;1m");
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
         c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
-        printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
+        logInfo("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
             memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i += 1) {
-                if (buff[i] >= from_value && buff[i] <= to_value) {
+                if (buff[i] >= fromValue && buff[i] <= toValue) {
                     cs += 1;
                     pmap.addr = pmapsit->addr + (j * memPageSize) + (i * LSize);
                     resultList->push_back(pmap);
@@ -303,13 +310,13 @@ int MemoryToolsBase::searchQword(mlong from_value, mlong to_value) {
             }
         }
     }
-    printf("\033[37;1m");
-    printf("\n");
+    logInfo("\033[37;1m");
+    logInfo("\n");
     delete[] buff;
     return cs;
 }
 
-int MemoryToolsBase::searchDouble(double from_value, double to_value) {
+int MemoryToolsBase::searchDouble(double fromValue, double toValue) {
     int cs = 0;
     RADDR pmap{0, 0};
     int c;
@@ -318,19 +325,19 @@ int MemoryToolsBase::searchDouble(double from_value, double to_value) {
     float len = 0;
     float max = searchRangeList->size();
     int position = 0;
-    printf("searchRangeSize: %d\n", (int)searchRangeList->size());
-    printf("\033[32;1m");
+    logInfo("searchRangeSize: %d\n", (int)searchRangeList->size());
+    logInfo("\033[32;1m");
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
         c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
-        printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
+        logInfo("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
             memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i += 1) {
-                if (buff[i] >= from_value && buff[i] <= to_value) {
+                if (buff[i] >= fromValue && buff[i] <= toValue) {
                     cs += 1;
                     pmap.addr = pmapsit->addr + (j * memPageSize) + (i * DSize);
                     resultList->push_back(pmap);
@@ -338,13 +345,13 @@ int MemoryToolsBase::searchDouble(double from_value, double to_value) {
             }
         }
     }
-    printf("\033[37;1m");
-    printf("\n");
+    logInfo("\033[37;1m");
+    logInfo("\n");
     delete[] buff;
     return cs;
 }
 
-int MemoryToolsBase::searchByte(mbyte from_value, mbyte to_value) {
+int MemoryToolsBase::searchByte(mbyte fromValue, mbyte toValue) {
     int cs = 0;
     RADDR pmap{0, 0};
     int c;
@@ -353,19 +360,19 @@ int MemoryToolsBase::searchByte(mbyte from_value, mbyte to_value) {
     float len = 0;
     float max = searchRangeList->size();
     int position = 0;
-    printf("searchRangeSize: %d\n", (int)searchRangeList->size());
-    printf("\033[32;1m");
+    logInfo("searchRangeSize: %d\n", (int)searchRangeList->size());
+    logInfo("\033[32;1m");
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
         c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
-        printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
+        logInfo("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
             memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i += 1) {
-                if (buff[i] >= from_value && buff[i] <= to_value) {
+                if (buff[i] >= fromValue && buff[i] <= toValue) {
                     cs += 1;
                     pmap.addr = pmapsit->addr + (j * memPageSize) + (i * BSize);
                     resultList->push_back(pmap);
@@ -373,16 +380,15 @@ int MemoryToolsBase::searchByte(mbyte from_value, mbyte to_value) {
             }
         }
     }
-    printf("\033[37;1m");
-    printf("\n");
+    logInfo("\033[37;1m");
+    logInfo("\n");
     delete[] buff;
     return cs;
 }
 
 // 字节数组搜索
-int MemoryToolsBase::searchBytes(std::string values) {
-    std::string input = values;
-    std::stringstream ss(input);
+int MemoryToolsBase::searchBytes(const std::string &values) {
+    std::stringstream ss(values);
     std::string temp;
     std::vector<int> numbers;
     try {
@@ -408,8 +414,8 @@ int MemoryToolsBase::searchBytes(std::string values) {
     float len = 0;
     float max = searchRangeList->size();
     int position = 0;
-    printf("searchRangeSize: %d\n", (int)searchRangeList->size());
-    printf("\033[32;1m");
+    logInfo("searchRangeSize: %d\n", (int)searchRangeList->size());
+    logInfo("\033[32;1m");
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     int k = 0;
@@ -418,7 +424,7 @@ int MemoryToolsBase::searchBytes(std::string values) {
         c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
-        printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
+        logInfo("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
             memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i++) {
@@ -447,8 +453,8 @@ int MemoryToolsBase::searchBytes(std::string values) {
             }
         }
     }
-    printf("\033[37;1m");
-    printf("\n");
+    logInfo("\033[37;1m");
+    logInfo("\n");
     delete[] buff;
     return cs;
 }
@@ -468,8 +474,8 @@ int MemoryToolsBase::searchString(const std::string &values) {
     float len = 0;
     float max = searchRangeList->size();
     int position = 0;
-    printf("searchRangeSize: %d\n", (int)searchRangeList->size());
-    printf("\033[32;1m");
+    logInfo("searchRangeSize: %d\n", (int)searchRangeList->size());
+    logInfo("\033[32;1m");
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     int k = 0;
@@ -478,7 +484,7 @@ int MemoryToolsBase::searchString(const std::string &values) {
         c = (int)(pmapsit->taddr - pmapsit->addr) / memPageSize;
         len++;
         position = (int)(len / max * 100.0F);
-        printf("[%d%%][%c]\r", position, *(proText + (position % 4)));
+        logInfo("[%d%%][%c]\r", position, *(proText + (position % 4)));
         for (int j = 0; j < c; j += 1) {
             memRead(buff, memPageSize, pmapsit->addr, j * memPageSize);
             for (int i = 0; i < buffSize; i++) {
@@ -498,13 +504,13 @@ int MemoryToolsBase::searchString(const std::string &values) {
             }
         }
     }
-    printf("\033[37;1m");
-    printf("\n");
+    logInfo("\033[37;1m");
+    logInfo("\n");
     delete[] buff;
     return cs;
 }
 
-int MemoryToolsBase::memorySearch(std::string value, Type type) {
+int MemoryToolsBase::memorySearch(const std::string &value, Type type) {
     clearResults();
     if (searchRangeList->empty()) {
         return -1;
@@ -533,34 +539,35 @@ int MemoryToolsBase::memorySearch(std::string value, Type type) {
     return cs;
 }
 
-int MemoryToolsBase::rangeMemorySearch(std::string from_value, std::string to_value, Type type) {
+int MemoryToolsBase::rangeMemorySearch(const std::string &fromValue, const std::string &toValue, Type type) {
     clearResults();
     int cs = 0;
     if (type == MEM_DWORD) {
-        int fval = atoi(from_value.c_str());
-        int tval = atoi(to_value.c_str());
+        int fval = atoi(fromValue.c_str());
+        int tval = atoi(toValue.c_str());
         cs = searchDword(fval, tval);
     } else if (type == MEM_QWORD) {
-        mlong fval = atoll(from_value.c_str());
-        mlong tval = atoll(to_value.c_str());
+        mlong fval = atoll(fromValue.c_str());
+        mlong tval = atoll(toValue.c_str());
         cs = searchQword(fval, tval);
     } else if (type == MEM_FLOAT) {
-        float fval = atof(from_value.c_str());
-        float tval = atof(to_value.c_str());
+        float fval = atof(fromValue.c_str());
+        float tval = atof(toValue.c_str());
         cs = searchFloat(fval, tval);
     } else if (type == MEM_DOUBLE) {
-        double fval = atof(from_value.c_str());
-        double tval = atof(to_value.c_str());
+        double fval = atof(fromValue.c_str());
+        double tval = atof(toValue.c_str());
         cs = searchDouble(fval, tval);
     } else if (type == MEM_BYTE) {
-        mbyte fval = atof(from_value.c_str());
-        mbyte tval = atof(to_value.c_str());
+        mbyte fval = atof(fromValue.c_str());
+        mbyte tval = atof(toValue.c_str());
         cs = searchByte(fval, tval);
     }
     return cs;
 }
 
-int MemoryToolsBase::searchOffset(const mbyte *from_value, const mbyte *to_value, ulong offset, Type type, ulong len) {
+int MemoryToolsBase::searchOffset(const mbyte *fromValue, const mbyte *toValue, mulong offset, Type type,
+                                  mulong len) {
     int cs = 0;
     auto *offList = new std::list<RADDR>;
     RADDR maps{0, 0};
@@ -572,36 +579,36 @@ int MemoryToolsBase::searchOffset(const mbyte *from_value, const mbyte *to_value
         bool isMatch = false;
         if (type == MEM_DWORD) {
             int value = *(int *)buf;
-            int from = *(int *)from_value;
-            int to = *(int *)to_value;
+            int from = *(int *)fromValue;
+            int to = *(int *)toValue;
             if (value >= from && value <= to) {
                 isMatch = true;
             }
         } else if (type == MEM_QWORD) {
             mlong value = *(mlong *)buf;
-            mlong from = *(mlong *)from_value;
-            mlong to = *(mlong *)to_value;
+            mlong from = *(mlong *)fromValue;
+            mlong to = *(mlong *)toValue;
             if (value >= from && value <= to) {
                 isMatch = true;
             }
         } else if (type == MEM_FLOAT) {
             float value = *(float *)buf;
-            float from = *(float *)from_value;
-            float to = *(float *)to_value;
+            float from = *(float *)fromValue;
+            float to = *(float *)toValue;
             if (value >= from && value <= to) {
                 isMatch = true;
             }
         } else if (type == MEM_DOUBLE) {
             double value = *(double *)buf;
-            double from = *(double *)from_value;
-            double to = *(double *)to_value;
+            double from = *(double *)fromValue;
+            double to = *(double *)toValue;
             if (value >= from && value <= to) {
                 isMatch = true;
             }
         } else if (type == MEM_BYTE) {
             mbyte value = *buf;
-            mbyte from = *from_value;
-            mbyte to = *to_value;
+            mbyte from = *fromValue;
+            mbyte to = *toValue;
             if (value >= from && value <= to) {
                 isMatch = true;
             }
@@ -618,7 +625,7 @@ int MemoryToolsBase::searchOffset(const mbyte *from_value, const mbyte *to_value
     return cs;
 }
 
-int MemoryToolsBase::memoryOffset(std::string value, ulong offset, Type type) {
+int MemoryToolsBase::memoryOffset(const std::string &value, mulong offset, Type type) {
     mbyte *buff = nullptr;
     int cs = 0;
     if (type == MEM_DWORD) {
@@ -651,45 +658,45 @@ int MemoryToolsBase::memoryOffset(std::string value, ulong offset, Type type) {
     return cs;
 }
 
-int MemoryToolsBase::rangeMemoryOffset(std::string from_value, std::string to_value, ulong offset, Type type) {
+int MemoryToolsBase::rangeMemoryOffset(const std::string &fromValue, const std::string &toValue, mulong offset, Type type) {
     mbyte *fbuff = nullptr;
     mbyte *tbuff = nullptr;
     int cs = 0;
     if (type == MEM_DWORD) {
-        int fval = atoi(from_value.c_str());
-        int tval = atoi(to_value.c_str());
+        int fval = atoi(fromValue.c_str());
+        int tval = atoi(toValue.c_str());
         fbuff = new mbyte[ISize];
         tbuff = new mbyte[ISize];
         memcpy(fbuff, &fval, ISize);
         memcpy(tbuff, &tval, ISize);
         cs = searchOffset(fbuff, tbuff, offset, type, ISize);
     } else if (type == MEM_QWORD) {
-        mlong fval = atoll(from_value.c_str());
-        mlong tval = atoll(to_value.c_str());
+        mlong fval = atoll(fromValue.c_str());
+        mlong tval = atoll(toValue.c_str());
         fbuff = new mbyte[LSize];
         tbuff = new mbyte[LSize];
         memcpy(fbuff, &fval, LSize);
         memcpy(tbuff, &tval, LSize);
         cs = searchOffset(fbuff, tbuff, offset, type, LSize);
     } else if (type == MEM_FLOAT) {
-        float fval = atof(from_value.c_str());
-        float tval = atof(to_value.c_str());
+        float fval = atof(fromValue.c_str());
+        float tval = atof(toValue.c_str());
         fbuff = new mbyte[FSize];
         tbuff = new mbyte[FSize];
         memcpy(fbuff, &fval, FSize);
         memcpy(tbuff, &tval, FSize);
         cs = searchOffset(fbuff, tbuff, offset, type, FSize);
     } else if (type == MEM_DOUBLE) {
-        double fval = atof(from_value.c_str());
-        double tval = atof(to_value.c_str());
+        double fval = atof(fromValue.c_str());
+        double tval = atof(toValue.c_str());
         fbuff = new mbyte[DSize];
         tbuff = new mbyte[DSize];
         memcpy(fbuff, &fval, DSize);
         memcpy(tbuff, &tval, DSize);
         cs = searchOffset(fbuff, tbuff, offset, type, DSize);
     } else if (type == MEM_BYTE) {
-        mbyte fval = atof(from_value.c_str());
-        mbyte tval = atof(to_value.c_str());
+        mbyte fval = atof(fromValue.c_str());
+        mbyte tval = atof(toValue.c_str());
         fbuff = new mbyte[BSize];
         tbuff = new mbyte[BSize];
         memcpy(fbuff, &fval, BSize);
@@ -702,7 +709,7 @@ int MemoryToolsBase::rangeMemoryOffset(std::string from_value, std::string to_va
 }
 
 
-void MemoryToolsBase::memoryWrite(std::string value, ulong offset, Type type) {
+void MemoryToolsBase::memoryWrite(const std::string &value, mulong offset, Type type) {
     mbyte *buff = nullptr;
     int len = 0;
     if (type == MEM_DWORD) {
@@ -731,31 +738,31 @@ void MemoryToolsBase::memoryWrite(std::string value, ulong offset, Type type) {
         memcpy(buff, &val, BSize);
         len = BSize;
     } else {
-        printf("Not support type: %d\n", type);
+        logInfo("Not support type: %d\n", type);
         return;
     }
     // 迭代器
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = resultList->begin(); pmapsit != resultList->end(); ++pmapsit) {
-        if(memWrite(buff, len, pmapsit->addr, offset) != len){
-            printf("Write error, Addr: %llX\n", pmapsit->addr);
+        if (memWrite(buff, len, pmapsit->addr, offset) != len) {
+            logInfo("Write error, Addr: %llX\n", pmapsit->addr);
         }
     }
 }
 
 
-ulong MemoryToolsBase::dumpMem(Addr beginAddr, Addr endAddr, FILE *dumpfile) {
+mulong MemoryToolsBase::dumpMem(Addr beginAddr, Addr endAddr, FILE *dumpfile) {
     if (endAddr - beginAddr <= 0) {
         return 0;
     }
     const int buffSize = 1024 * 1024 * 2;
     auto *fileBuff = new mbyte[buffSize];
     Addr baseAddress = beginAddr;
-    ulong baseSize = endAddr - beginAddr;
+    mulong baseSize = endAddr - beginAddr;
     offset off = 0;
-    ulong total = 0;
+    mulong total = 0;
     while (baseSize > 0) {
-        ulong size = (std::min)(baseSize, (ulong)buffSize);
+        mulong size = (std::min)(baseSize, (mulong)buffSize);
         readV(fileBuff, buffSize, baseAddress, off);
         fwrite(fileBuff, 1, size, dumpfile);
         baseSize -= size;
@@ -766,16 +773,16 @@ ulong MemoryToolsBase::dumpMem(Addr beginAddr, Addr endAddr, FILE *dumpfile) {
     return total;
 }
 
-ulong MemoryToolsBase::dumpMem(std::string dumpModule, std::string filePath) {
+mulong MemoryToolsBase::dumpMem(std::string dumpModule, std::string filePath) {
     const int buffSize = 1024 * 1024 * 2;
     auto *fileBuff = new mbyte[buffSize];
     FILE *p = fopen(filePath.c_str(), "wb");
-    ulong total = 0;
+    mulong total = 0;
     Addr baseAddress = getModuleAddr(dumpModule);
-    ulong baseSize = getModuleSize(dumpModule);
+    mulong baseSize = getModuleSize(dumpModule);
     offset off = 0;
     while (baseSize > 0) {
-        ulong size = (std::min)(baseSize, (ulong)buffSize);
+        mulong size = (std::min)(baseSize, (mulong)buffSize);
         readV(fileBuff, buffSize, baseAddress, off);
         fwrite(fileBuff, 1, size, p);
         total += size;
@@ -787,13 +794,13 @@ ulong MemoryToolsBase::dumpMem(std::string dumpModule, std::string filePath) {
     return total;
 }
 
-ulong MemoryToolsBase::dumpAllMem(const std::string &dirPath) {
+mulong MemoryToolsBase::dumpAllMem(const std::string &dirPath) {
     std::filesystem::path path(dirPath);
     if (!exists(path)) {
-        printf("No such directory: %s\n", path.string().c_str());
+        logInfo("No such directory: %s\n", path.string().c_str());
         return 0;
     }
-    ulong total = 0;
+    mulong total = 0;
     std::string dictTxtPath = dirPath + "/dict.txt";
     FILE *dictTxt = fopen(dictTxtPath.c_str(), "wb");
     std::vector<RADDR> modules;
@@ -805,14 +812,14 @@ ulong MemoryToolsBase::dumpAllMem(const std::string &dirPath) {
     offset memoryMapOff = 0;
     // 保存模块数据
     for (const auto &mModule : moduleRegions) {
-        printf("Dumping module: %s size: %llX\n", mModule.moduleName, mModule.baseSize);
-        std::string baseAddressStr = addrToHex(mModule.baseAddress) + "|" + addrToHex(
-        mModule.baseAddress + mModule.baseSize);
-        std::string outStr = "m|" + std::string(mModule.moduleName) + "|" + baseAddressStr + "|" +
-        addrToHex(memoryMapOff) + "\n";
+        logInfo("Dumping module: %s size: %llX\n", mModule.moduleName, mModule.baseSize);
+        std::string baseAddressStr =
+        addrToHex(mModule.baseAddress) + "|" + addrToHex(mModule.baseAddress + mModule.baseSize);
+        std::string outStr =
+        "m|" + std::string(mModule.moduleName) + "|" + baseAddressStr + "|" + addrToHex(memoryMapOff) + "\n";
         fwrite(outStr.data(), 1, outStr.size(), dictTxt);
         modules.push_back({mModule.baseAddress, mModule.baseAddress + mModule.baseSize});
-        ulong size = dumpMem(mModule.baseAddress, mModule.baseAddress + mModule.baseSize, m);
+        mulong size = dumpMem(mModule.baseAddress, mModule.baseAddress + mModule.baseSize, m);
         if (size == 0) {
             total = 0;
             break;
@@ -840,11 +847,11 @@ ulong MemoryToolsBase::dumpAllMem(const std::string &dirPath) {
         if (!isModuleRegion) {
             continue;
         }
-        printf("Dumping memory: %llX size: %llX\n", baseAddress, baseSize);
+        logInfo("Dumping memory: %llX size: %llX\n", baseAddress, baseSize);
         std::string baseAddressStr = addrToHex(baseAddress) + "|" + addrToHex(baseAddress + baseSize);
         std::string outStr = "p|p|" + baseAddressStr + "|" + addrToHex(memoryMapOff) + "\n";
         fwrite(outStr.data(), 1, outStr.size(), dictTxt);
-        ulong size = dumpMem(baseAddress, baseAddress + baseSize, p);
+        mulong size = dumpMem(baseAddress, baseAddress + baseSize, p);
         if (size == 0) {
             total = 0;
             break;
@@ -860,14 +867,14 @@ ulong MemoryToolsBase::dumpAllMem(const std::string &dirPath) {
 void MemoryToolsBase::printResult() const {
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = resultList->begin(); pmapsit != resultList->end(); ++pmapsit) {
-        printf("addr:0x%llX,taddr:0x%llX\n", pmapsit->addr, pmapsit->taddr);
+        logInfo("addr:0x%llX,taddr:0x%llX\n", pmapsit->addr, pmapsit->taddr);
     }
 }
 
 void MemoryToolsBase::printSearchRange() const {
     std::list<RADDR>::iterator pmapsit;
     for (pmapsit = searchRangeList->begin(); pmapsit != searchRangeList->end(); ++pmapsit) {
-        printf("addr:0x%llX,taddr:0x%llX\n", pmapsit->addr, pmapsit->taddr);
+        logInfo("addr:0x%llX,taddr:0x%llX\n", pmapsit->addr, pmapsit->taddr);
     }
 }
 
